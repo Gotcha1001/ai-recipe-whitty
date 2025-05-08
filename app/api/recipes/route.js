@@ -150,7 +150,13 @@ export async function POST(request) {
 
     if (!process.env.GEMINI_API_KEY) {
       console.error("GEMINI_API_KEY is not configured");
-      throw new Error("GEMINI_API_KEY is not configured");
+      return NextResponse.json(
+        {
+          error:
+            "API key not configured. Please check your environment variables.",
+        },
+        { status: 500 }
+      );
     }
 
     const body = await request.json();
@@ -173,81 +179,112 @@ export async function POST(request) {
 
     console.log("Generating recipe for:", recipeRequest);
     const prompt = `${systemMessage}\n\nGenerate a recipe for: ${recipeRequest}`;
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
-    console.log("Generated recipe text:", text);
 
-    const { quirkyResponse, recipes } = parseRecipeResponse(text, true);
-    console.log(
-      "Parsed response:",
-      JSON.stringify({ quirkyResponse, recipes }, null, 2)
-    );
-
-    if (!recipes || recipes.length === 0) {
-      console.error("No recipes were generated");
-      throw new Error("No recipe was generated");
-    }
-
-    const recipe = recipes[0];
-    if (
-      !recipe.ingredients ||
-      !recipe.instructions ||
-      recipe.ingredients.length === 0 ||
-      recipe.instructions.length === 0
-    ) {
-      console.error("Recipe is incomplete:", recipe);
-      throw new Error("Recipe is incomplete");
-    }
-
-    // Generate image for the recipe
     try {
-      // Get the host from the request headers
-      const host = request.headers.get("host");
-      const protocol =
-        process.env.NODE_ENV === "development" ? "http" : "https";
-      const imageUrl = `${protocol}://${host}/api/generate-image`;
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      const text = response.text();
+      console.log("Generated recipe text:", text);
 
-      console.log("Requesting image generation from:", imageUrl);
-      const imageResponse = await fetch(imageUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          prompt: `A beautiful photo of ${recipe.name}`,
-        }),
+      if (!text || text.trim() === "") {
+        console.error("Empty response from Gemini API");
+        return NextResponse.json(
+          {
+            error: "Chef Quirky couldn't generate a recipe. Please try again!",
+          },
+          { status: 500 }
+        );
+      }
+
+      const { quirkyResponse, recipes } = parseRecipeResponse(text, true);
+      console.log(
+        "Parsed response:",
+        JSON.stringify({ quirkyResponse, recipes }, null, 2)
+      );
+
+      if (!recipes || recipes.length === 0) {
+        console.error("No recipes were generated from text:", text);
+        return NextResponse.json(
+          {
+            error:
+              "Chef Quirky couldn't understand the recipe format. Please try again!",
+          },
+          { status: 500 }
+        );
+      }
+
+      const recipe = recipes[0];
+      if (
+        !recipe.ingredients ||
+        !recipe.instructions ||
+        recipe.ingredients.length === 0 ||
+        recipe.instructions.length === 0
+      ) {
+        console.error("Recipe is incomplete:", recipe);
+        return NextResponse.json(
+          {
+            error:
+              "The recipe is missing ingredients or instructions. Please try again!",
+          },
+          { status: 500 }
+        );
+      }
+
+      // Generate image for the recipe
+      try {
+        const host = request.headers.get("host");
+        const protocol =
+          process.env.NODE_ENV === "development" ? "http" : "https";
+        const imageUrl = `${protocol}://${host}/api/generate-image`;
+
+        console.log("Requesting image generation from:", imageUrl);
+        const imageResponse = await fetch(imageUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            prompt: `A beautiful photo of ${recipe.name}`,
+          }),
+        });
+
+        if (!imageResponse.ok) {
+          console.error("Image generation failed:", await imageResponse.text());
+          // Don't throw error, continue without image
+        } else {
+          const imageData = await imageResponse.json();
+          console.log("Image generation response:", imageData);
+
+          if (imageData.imageUrl) {
+            console.log("Adding image URL to recipe:", imageData.imageUrl);
+            recipe.imageUrl = imageData.imageUrl;
+          }
+        }
+      } catch (imageError) {
+        console.error("Error generating image:", imageError);
+        // Continue without image
+      }
+
+      console.log("Final recipe with image:", recipe);
+      return NextResponse.json({
+        quirkyResponse,
+        recipe,
       });
-
-      if (!imageResponse.ok) {
-        console.error("Image generation failed:", await imageResponse.text());
-        throw new Error(`Image generation failed: ${imageResponse.statusText}`);
-      }
-
-      const imageData = await imageResponse.json();
-      console.log("Image generation response:", imageData);
-
-      if (imageData.imageUrl) {
-        console.log("Adding image URL to recipe:", imageData.imageUrl);
-        recipe.imageUrl = imageData.imageUrl;
-      } else {
-        console.error("No image URL in response:", imageData);
-      }
-    } catch (imageError) {
-      console.error("Error generating image:", imageError);
-      // Don't throw error if image generation fails
+    } catch (geminiError) {
+      console.error("Gemini API error:", geminiError);
+      return NextResponse.json(
+        {
+          error:
+            "Chef Quirky is having trouble connecting to the recipe database. Please try again!",
+        },
+        { status: 500 }
+      );
     }
-
-    console.log("Final recipe with image:", recipe);
-    return NextResponse.json({
-      quirkyResponse,
-      recipe,
-    });
   } catch (error) {
     console.error("Error in recipe generation:", error);
     return NextResponse.json(
       {
-        error: error.message || "Chef Quirky hit a snag. Try again!",
+        error: "Chef Quirky hit a snag. Please try again!",
       },
       { status: 500 }
     );
