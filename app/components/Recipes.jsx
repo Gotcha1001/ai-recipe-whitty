@@ -1,8 +1,23 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState } from "react";
+import { useRouter } from "next/navigation";
+import { generateRecipe } from "../api/recipe";
+import { generateImage } from "../api/image";
+import { jsPDF } from "jspdf";
+import { FaDownload, FaSpinner, FaArrowLeft, FaSearch } from "react-icons/fa";
 import axios from 'axios';
-import { jsPDF } from 'jspdf';
+import MotionWrapperDelay from "./FramerMotion/MotionWrapperDelay";
+
+const categories = [
+    { name: "Cakes", icon: "🍰" },
+    { name: "Cocktails", icon: "🍹" },
+    { name: "Fast Food", icon: "🍔" },
+    { name: "Healthy", icon: "🥗" },
+    { name: "Italian", icon: "🍝" },
+    { name: "Mexican", icon: "🌮" },
+    { name: "Asian", icon: "🍜" }
+];
 
 const systemMessage = `You are Chef Quirky, a fun and engaging recipe assistant. When asked for a recipe, provide a quirky introduction limited to **two short paragraphs** (3-4 sentences total, max 100 words), followed by the recipe in this format:
 **Recipe Name**
@@ -104,8 +119,22 @@ function generateRecipePDF(recipes) {
 
         if (recipe.imageUrl) {
             try {
-                doc.addImage(recipe.imageUrl, 'JPEG', 20, yOffset, 170, 100);
-                yOffset += 110;
+                // Create a rounded rectangle path
+                const x = 20;
+                const y = yOffset;
+                const width = 170;
+                const height = 150;
+                const radius = 10; // Corner radius
+
+                // Draw rounded rectangle
+                doc.setDrawColor(200, 200, 200); // Light gray border
+                doc.setLineWidth(0.5);
+                doc.roundedRect(x, y, width, height, radius, radius, 'S');
+
+                // Add image with clipping
+                doc.addImage(recipe.imageUrl, 'JPEG', x, y, width, height, undefined, 'FAST', 0);
+
+                yOffset += 160; // Increased spacing after image
             } catch (error) {
                 console.error('Error adding image to PDF:', error);
             }
@@ -137,18 +166,52 @@ function generateRecipePDF(recipes) {
 }
 
 export default function Recipes() {
+    const router = useRouter();
+    const [recipes, setRecipes] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [searchQuery, setSearchQuery] = useState("");
+    const [error, setError] = useState(null);
     const [userInput, setUserInput] = useState('');
     const [quirkyResponse, setQuirkyResponse] = useState('');
     const [individualRecipe, setIndividualRecipe] = useState(null);
     const [weeklyRecipes, setWeeklyRecipes] = useState([]);
     const [imageUrl, setImageUrl] = useState('');
-    const [error, setError] = useState('');
-    const [loading, setLoading] = useState(false);
     const [loadingWeekly, setLoadingWeekly] = useState(false);
     const [loadingCocktails, setLoadingCocktails] = useState(false);
     const [loadingFastFood, setLoadingFastFood] = useState(false);
     const [loadingSavoury, setLoadingSavoury] = useState(false);
     const [loadingCakes, setLoadingCakes] = useState(false);
+
+    const handleSearch = async (e) => {
+        e.preventDefault();
+        if (!searchQuery.trim()) return;
+
+        setLoading(true);
+        setError(null);
+        try {
+            const recipe = await generateRecipe(searchQuery);
+            const imageUrl = await generateImage(recipe.name);
+            setRecipes([{ ...recipe, imageUrl }]);
+        } catch (error) {
+            console.error("Error generating recipe:", error);
+            setError("Failed to generate recipe. Please try again.");
+        }
+        setLoading(false);
+    };
+
+    const handleCategoryClick = async (category) => {
+        setLoading(true);
+        setError(null);
+        try {
+            const recipe = await generateRecipe(category);
+            const imageUrl = await generateImage(recipe.name);
+            setRecipes([{ ...recipe, imageUrl }]);
+        } catch (error) {
+            console.error("Error generating recipe:", error);
+            setError("Failed to generate recipe. Please try again.");
+        }
+        setLoading(false);
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -274,175 +337,225 @@ export default function Recipes() {
     };
 
     return (
-        <div>
-            <h1 className="text-3xl font-bold text-white mb-6">Chef Quirky's Kitchen</h1>
-            <form onSubmit={handleSubmit} className="mb-6">
-                <input
-                    type="text"
-                    value={userInput}
-                    onChange={(e) => setUserInput(e.target.value)}
-                    placeholder="What do you want to cook today?"
-                    className="w-full p-3 bg-gray-800 border border-gray-700 rounded-lg text-gray-200 placeholder-gray-400 focus:outline-none focus:border-purple-500"
-                />
-                <div className="flex justify-center mt-3">
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        className="bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 transition duration-200 flex items-center justify-center"
+        <div className="min-h-screen gradient-background2 p-8">
+            <div className="max-w-4xl mx-auto bg-black bg-opacity-50 p-8 rounded-lg">
+                <MotionWrapperDelay
+                    initial="hidden"
+                    whileInView="visible"
+                    viewport={{ once: true, amount: 0.5 }}
+                    transition={{ duration: 0.5, delay: 0.5 }}
+                    variants={{
+                        hidden: { opacity: 0, y: 100 },
+                        visible: { opacity: 1, y: 0 },
+                    }}
+                >
+                    <h1 className="text-3xl font-bold text-white mb-6 text-center">Chef Quirky's Kitchen</h1>
+                </MotionWrapperDelay>
+
+                <form onSubmit={handleSubmit} className="mb-6">
+                    <MotionWrapperDelay
+                        initial="hidden"
+                        whileInView="visible"
+                        viewport={{ once: true, amount: 0.5 }}
+                        transition={{ duration: 0.5, delay: 0.7 }}
+                        variants={{
+                            hidden: { opacity: 0, x: 100 },
+                            visible: { opacity: 1, x: 0 },
+                        }}
                     >
-                        <span>{loading ? 'Cooking...' : 'Ask Chef Quirky'}</span>
-                        {loading && (
-                            <span className="ml-2 border-2 border-white border-t-transparent rounded-full w-5 h-5 animate-spin"></span>
-                        )}
-                    </button>
-                </div>
-            </form>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                <button
-                    onClick={handleWeeklyRecipes}
-                    disabled={loadingWeekly}
-                    className="bg-gradient-to-r from-purple-700 to-black bg-opacity-90 text-white px-6 py-3 rounded-lg hover:bg-gradient-to-r hover:from-purple-900 hover:to-black transition duration-200 w-full flex items-center justify-center"
-                >
-                    <span>{loadingWeekly ? 'Cooking...' : 'Generate Weekly Recipes'}</span>
-                    {loadingWeekly && (
-                        <span className="ml-2 border-2 border-white border-t-transparent rounded-full w-5 h-5 animate-spin"></span>
-                    )}
-                </button>
-
-                <button
-                    onClick={handleCocktails}
-                    disabled={loadingCocktails}
-                    className="bg-gradient-to-r from-purple-700 to-indigo-600 bg-opacity-90 text-white px-6 py-3 rounded-lg hover:bg-gradient-to-r hover:from-purple-900 hover:to-black transition duration-200 w-full flex items-center justify-center"
-                >
-                    <span>{loadingCocktails ? 'Mixing...' : 'Generate 7 Cocktails'}</span>
-                    {loadingCocktails && (
-                        <span className="ml-2 border-2 border-white border-t-transparent rounded-full w-5 h-5 animate-spin"></span>
-                    )}
-                </button>
-
-                <button
-                    onClick={handleFastFood}
-                    disabled={loadingFastFood}
-                    className="bg-gradient-to-r from-indigo-700 to-black bg-opacity-90 text-white px-6 py-3 rounded-lg hover:bg-gradient-to-r hover:from-purple-900 hover:to-black transition duration-200 w-full flex items-center justify-center"
-                >
-                    <span>{loadingFastFood ? 'Cooking...' : 'Generate 7 Fast Food Recipes'}</span>
-                    {loadingFastFood && (
-                        <span className="ml-2 border-2 border-white border-t-transparent rounded-full w-5 h-5 animate-spin"></span>
-                    )}
-                </button>
-
-                <button
-                    onClick={handleSavouryMeals}
-                    disabled={loadingSavoury}
-                    className="bg-gradient-to-r from-purple-800 to-indigo-700 bg-opacity-90 text-white px-6 py-3 rounded-lg hover:bg-gradient-to-r hover:from-purple-900 hover:to-black transition duration-200 w-full flex items-center justify-center"
-                >
-                    <span>{loadingSavoury ? 'Cooking...' : 'Generate 7 Savoury Meals'}</span>
-                    {loadingSavoury && (
-                        <span className="ml-2 border-2 border-white border-t-transparent rounded-full w-5 h-5 animate-spin"></span>
-                    )}
-                </button>
-
-                <button
-                    onClick={handleCakes}
-                    disabled={loadingCakes}
-                    className="bg-gradient-to-r from-pink-600 to-purple-600 bg-opacity-90 text-white px-6 py-3 rounded-lg hover:bg-gradient-to-r hover:from-pink-700 hover:to-purple-700 transition duration-200 w-full flex items-center justify-center"
-                >
-                    <span>{loadingCakes ? 'Baking...' : 'Generate 7 Cake Recipes'}</span>
-                    {loadingCakes && (
-                        <span className="ml-2 border-2 border-white border-t-transparent rounded-full w-5 h-5 animate-spin"></span>
-                    )}
-                </button>
-            </div>
-
-            {error && <p className="text-red-500 mb-4">{error}</p>}
-
-            {quirkyResponse && (
-                <div>
-                    <h2 className="text-2xl font-bold text-white mb-4">Chef Quirky Says:</h2>
-                    <div className="text-gray-200 mb-6 whitespace-pre-line">{quirkyResponse}</div>
-                </div>
-            )}
-
-            {individualRecipe && (
-                <div>
-                    <h2 className="text-2xl font-bold text-white mb-4">{individualRecipe.name}</h2>
-                    {imageUrl && (
-                        <img
-                            src={imageUrl}
-                            alt="Recipe image"
-                            className="mb-4 max-w-full h-auto rounded-lg shadow-lg"
+                        <input
+                            type="text"
+                            value={userInput}
+                            onChange={(e) => setUserInput(e.target.value)}
+                            placeholder="What do you want to cook today?"
+                            className="w-full p-3 bg-gray-800 border border-gray-700 rounded-lg text-gray-200 placeholder-gray-400 focus:outline-none focus:border-purple-500"
                         />
-                    )}
-                    <div className="bg-gradient-to-br from-purple-800 to-black bg-opacity-90 p-6 rounded-lg shadow-lg mb-6 border border-purple-900">
-                        <h3 className="text-xl font-semibold text-white">{individualRecipe.name}</h3>
-                        <div className="text-gray-300 mt-4">
-                            <h4 className="font-semibold text-gray-200">Ingredients:</h4>
-                            <ul className="list-disc pl-5 mb-4">
-                                {individualRecipe.ingredients.length ? (
-                                    individualRecipe.ingredients.map((ingredient, index) => (
-                                        <li key={index}>{ingredient}</li>
-                                    ))
-                                ) : (
-                                    <li>No ingredients provided.</li>
-                                )}
-                            </ul>
-                            <h4 className="font-semibold text-gray-200">Instructions:</h4>
-                            <ol className="list-decimal pl-5">
-                                {individualRecipe.instructions.length ? (
-                                    individualRecipe.instructions.map((instruction, index) => (
-                                        <li key={index} className="mb-2">{instruction}</li>
-                                    ))
-                                ) : (
-                                    <li>No instructions provided.</li>
-                                )}
-                            </ol>
-                        </div>
-                        <div className="mt-4">
-                            <button
-                                onClick={() => handleDownloadPDF(individualRecipe)}
-                                className="bg-purple-600 text-white px-4 py-2 rounded-lg mr-2 hover:bg-purple-700 transition duration-200"
-                            >
-                                Download Recipe PDF
-                            </button>
-                            {imageUrl && (
-                                <a
-                                    href={imageUrl}
-                                    download={`${individualRecipe.name.toLowerCase().replace(/\s+/g, '_')}.jpg`}
-                                    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition duration-200"
-                                >
-                                    Download Image
-                                </a>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            )}
+                    </MotionWrapperDelay>
 
-            {weeklyRecipes.length > 0 && (
-                <div>
-                    <h2 className="text-2xl font-bold text-white mb-4">Weekly Recipes</h2>
-                    <button
-                        onClick={handleDownloadWeeklyPDF}
-                        className="bg-purple-600 text-white px-4 py-2 rounded-lg mb-6 hover:bg-purple-700 transition duration-200"
-                    >
-                        Download Weekly Recipes PDF
-                    </button>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {weeklyRecipes.map((recipe, index) => (
-                            <div
-                                key={index}
-                                className="bg-gradient-to-br from-purple-800 to-black bg-opacity-90 p-6 rounded-lg shadow-lg border border-purple-900"
+                    <div className="flex justify-center mt-3">
+                        <MotionWrapperDelay
+                            initial="hidden"
+                            whileInView="visible"
+                            viewport={{ once: true, amount: 0.5 }}
+                            transition={{ duration: 0.5, delay: 0.7 }}
+                            variants={{
+                                hidden: { opacity: 0, y: -100 },
+                                visible: { opacity: 1, y: 0 },
+                            }}
+                        >
+                            <button
+                                type="submit"
+                                disabled={loading}
+                                className="bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 transition duration-200 flex items-center justify-center"
                             >
-                                <h3 className="text-xl font-semibold text-white">
-                                    {recipe.day}: {recipe.name}
-                                </h3>
+                                <span>{loading ? 'Cooking...' : 'Ask Chef Quirky'}</span>
+                                {loading && (
+                                    <span className="ml-2 border-2 border-white border-t-transparent rounded-full w-5 h-5 animate-spin"></span>
+                                )}
+                            </button>
+                        </MotionWrapperDelay>
+                    </div>
+                </form>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                    <MotionWrapperDelay
+                        initial="hidden"
+                        whileInView="visible"
+                        viewport={{ once: true, amount: 0.5 }}
+                        transition={{ duration: 0.5, delay: 0.7 }}
+                        variants={{
+                            hidden: { opacity: 0, y: -100 },
+                            visible: { opacity: 1, y: 0 },
+                        }}
+                    >
+                        <button
+                            onClick={handleWeeklyRecipes}
+                            disabled={loadingWeekly}
+                            className="bg-gradient-to-r from-purple-700 to-black bg-opacity-90 text-white px-6 py-3 rounded-lg hover:bg-gradient-to-r hover:from-purple-900 hover:to-black transition duration-200 w-full flex items-center justify-center"
+                        >
+                            <span>{loadingWeekly ? 'Cooking...' : 'Generate Weekly Recipes'}</span>
+                            {loadingWeekly && (
+                                <span className="ml-2 border-2 border-white border-t-transparent rounded-full w-5 h-5 animate-spin"></span>
+                            )}
+                        </button>
+                    </MotionWrapperDelay>
+                    <MotionWrapperDelay
+                        initial="hidden"
+                        whileInView="visible"
+                        viewport={{ once: true, amount: 0.5 }}
+                        transition={{ duration: 0.5, delay: 0.7 }}
+                        variants={{
+                            hidden: { opacity: 0, y: 100 },
+                            visible: { opacity: 1, y: 0 },
+                        }}
+                    >
+                        <button
+                            onClick={handleCocktails}
+                            disabled={loadingCocktails}
+                            className="bg-gradient-to-r from-purple-700 to-indigo-600 bg-opacity-90 text-white px-6 py-3 rounded-lg hover:bg-gradient-to-r hover:from-purple-900 hover:to-black transition duration-200 w-full flex items-center justify-center"
+                        >
+                            <span>{loadingCocktails ? 'Mixing...' : 'Generate 7 Cocktails'}</span>
+                            {loadingCocktails && (
+                                <span className="ml-2 border-2 border-white border-t-transparent rounded-full w-5 h-5 animate-spin"></span>
+                            )}
+                        </button>
+                    </MotionWrapperDelay>
+
+                    <MotionWrapperDelay
+                        initial="hidden"
+                        whileInView="visible"
+                        viewport={{ once: true, amount: 0.5 }}
+                        transition={{ duration: 0.5, delay: 0.9 }}
+                        variants={{
+                            hidden: { opacity: 0, x: 100 },
+                            visible: { opacity: 1, x: 0 },
+                        }}
+                    >
+                        <button
+                            onClick={handleFastFood}
+                            disabled={loadingFastFood}
+                            className="bg-gradient-to-r from-indigo-700 to-black bg-opacity-90 text-white px-6 py-3 rounded-lg hover:bg-gradient-to-r hover:from-purple-900 hover:to-black transition duration-200 w-full flex items-center justify-center"
+                        >
+                            <span>{loadingFastFood ? 'Cooking...' : 'Generate 7 Fast Food Recipes'}</span>
+                            {loadingFastFood && (
+                                <span className="ml-2 border-2 border-white border-t-transparent rounded-full w-5 h-5 animate-spin"></span>
+                            )}
+                        </button>
+                    </MotionWrapperDelay>
+
+                    <MotionWrapperDelay
+                        initial="hidden"
+                        whileInView="visible"
+                        viewport={{ once: true, amount: 0.5 }}
+                        transition={{ duration: 0.5, delay: 0.7 }}
+                        variants={{
+                            hidden: { opacity: 0, y: -100 },
+                            visible: { opacity: 1, y: 0 },
+                        }}
+                    >
+                        <button
+                            onClick={handleSavouryMeals}
+                            disabled={loadingSavoury}
+                            className="bg-gradient-to-r from-purple-800 to-indigo-700 bg-opacity-90 text-white px-6 py-3 rounded-lg hover:bg-gradient-to-r hover:from-purple-900 hover:to-black transition duration-200 w-full flex items-center justify-center"
+                        >
+                            <span>{loadingSavoury ? 'Cooking...' : 'Generate 7 Savoury Meals'}</span>
+                            {loadingSavoury && (
+                                <span className="ml-2 border-2 border-white border-t-transparent rounded-full w-5 h-5 animate-spin"></span>
+                            )}
+                        </button>
+                    </MotionWrapperDelay>
+
+                    <MotionWrapperDelay
+                        initial="hidden"
+                        whileInView="visible"
+                        viewport={{ once: true, amount: 0.5 }}
+                        transition={{ duration: 0.9, delay: 0.7 }}
+                        variants={{
+                            hidden: { opacity: 0, y: -100 },
+                            visible: { opacity: 1, y: 0 },
+                        }}
+                    >
+                        <button
+                            onClick={handleCakes}
+                            disabled={loadingCakes}
+                            className="bg-gradient-to-r from-pink-600 to-purple-600 bg-opacity-90 text-white px-6 py-3 rounded-lg hover:bg-gradient-to-r hover:from-pink-700 hover:to-purple-700 transition duration-200 w-full flex items-center justify-center"
+                        >
+                            <span>{loadingCakes ? 'Baking...' : 'Generate 7 Cake Recipes'}</span>
+                            {loadingCakes && (
+                                <span className="ml-2 border-2 border-white border-t-transparent rounded-full w-5 h-5 animate-spin"></span>
+                            )}
+                        </button>
+                    </MotionWrapperDelay>
+                </div>
+
+                {error && <p className="text-red-500 mb-4">{error}</p>}
+
+                {quirkyResponse && (
+                    <MotionWrapperDelay
+                        initial="hidden"
+                        whileInView="visible"
+                        viewport={{ once: true, amount: 0.5 }}
+                        transition={{ duration: 0.5 }}
+                        variants={{
+                            hidden: { opacity: 0, y: 20 },
+                            visible: { opacity: 1, y: 0 },
+                        }}
+                    >
+                        <div className="bg-black bg-opacity-50 p-6 rounded-lg mb-6">
+                            <h2 className="text-2xl font-bold text-white mb-4">Chef Quirky Says:</h2>
+                            <div className="text-gray-200 whitespace-pre-line">{quirkyResponse}</div>
+                        </div>
+                    </MotionWrapperDelay>
+                )}
+
+                {individualRecipe && (
+                    <MotionWrapperDelay
+                        initial="hidden"
+                        whileInView="visible"
+                        viewport={{ once: true, amount: 0.5 }}
+                        transition={{ duration: 0.5 }}
+                        variants={{
+                            hidden: { opacity: 0, y: 20 },
+                            visible: { opacity: 1, y: 0 },
+                        }}
+                    >
+                        <div className="bg-black bg-opacity-50 p-6 rounded-lg">
+                            <h2 className="text-2xl font-bold text-white mb-4">{individualRecipe.name}</h2>
+                            {imageUrl && (
+                                <img
+                                    src={imageUrl}
+                                    alt="Recipe image"
+                                    className="mb-4 max-w-full h-auto rounded-lg shadow-lg"
+                                />
+                            )}
+                            <div className="bg-gradient-to-br from-purple-800 to-black bg-opacity-90 p-6 rounded-lg shadow-lg mb-6 border border-purple-900">
+                                <h3 className="text-xl font-semibold text-white">{individualRecipe.name}</h3>
                                 <div className="text-gray-300 mt-4">
                                     <h4 className="font-semibold text-gray-200">Ingredients:</h4>
                                     <ul className="list-disc pl-5 mb-4">
-                                        {recipe.ingredients.length ? (
-                                            recipe.ingredients.map((ingredient, i) => (
-                                                <li key={i}>{ingredient}</li>
+                                        {individualRecipe.ingredients.length ? (
+                                            individualRecipe.ingredients.map((ingredient, index) => (
+                                                <li key={index}>{ingredient}</li>
                                             ))
                                         ) : (
                                             <li>No ingredients provided.</li>
@@ -450,20 +563,94 @@ export default function Recipes() {
                                     </ul>
                                     <h4 className="font-semibold text-gray-200">Instructions:</h4>
                                     <ol className="list-decimal pl-5">
-                                        {recipe.instructions.length ? (
-                                            recipe.instructions.map((instruction, i) => (
-                                                <li key={i} className="mb-2">{instruction}</li>
+                                        {individualRecipe.instructions.length ? (
+                                            individualRecipe.instructions.map((instruction, index) => (
+                                                <li key={index} className="mb-2">{instruction}</li>
                                             ))
                                         ) : (
                                             <li>No instructions provided.</li>
                                         )}
                                     </ol>
                                 </div>
+                                <div className="mt-4">
+                                    <button
+                                        onClick={() => handleDownloadPDF(individualRecipe)}
+                                        className="bg-purple-600 text-white px-4 py-2 rounded-lg mr-2 hover:bg-purple-700 transition duration-200"
+                                    >
+                                        Download Recipe PDF
+                                    </button>
+                                    {imageUrl && (
+                                        <a
+                                            href={imageUrl}
+                                            download={`${individualRecipe.name.toLowerCase().replace(/\s+/g, '_')}.jpg`}
+                                            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition duration-200"
+                                        >
+                                            Download Image
+                                        </a>
+                                    )}
+                                </div>
                             </div>
-                        ))}
-                    </div>
-                </div>
-            )}
+                        </div>
+                    </MotionWrapperDelay>
+                )}
+
+                {weeklyRecipes.length > 0 && (
+                    <MotionWrapperDelay
+                        initial="hidden"
+                        whileInView="visible"
+                        viewport={{ once: true, amount: 0.5 }}
+                        transition={{ duration: 0.5 }}
+                        variants={{
+                            hidden: { opacity: 0, y: 20 },
+                            visible: { opacity: 1, y: 0 },
+                        }}
+                    >
+                        <div className="bg-black bg-opacity-50 p-6 rounded-lg">
+                            <h2 className="text-2xl font-bold text-white mb-4">Weekly Recipes</h2>
+                            <button
+                                onClick={handleDownloadWeeklyPDF}
+                                className="bg-purple-600 text-white px-4 py-2 rounded-lg mb-6 hover:bg-purple-700 transition duration-200"
+                            >
+                                Download Weekly Recipes PDF
+                            </button>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {weeklyRecipes.map((recipe, index) => (
+                                    <div
+                                        key={index}
+                                        className="bg-gradient-to-br from-purple-800 to-black bg-opacity-90 p-6 rounded-lg shadow-lg border border-purple-900"
+                                    >
+                                        <h3 className="text-xl font-semibold text-white">
+                                            {recipe.day}: {recipe.name}
+                                        </h3>
+                                        <div className="text-gray-300 mt-4">
+                                            <h4 className="font-semibold text-gray-200">Ingredients:</h4>
+                                            <ul className="list-disc pl-5 mb-4">
+                                                {recipe.ingredients.length ? (
+                                                    recipe.ingredients.map((ingredient, i) => (
+                                                        <li key={i}>{ingredient}</li>
+                                                    ))
+                                                ) : (
+                                                    <li>No ingredients provided.</li>
+                                                )}
+                                            </ul>
+                                            <h4 className="font-semibold text-gray-200">Instructions:</h4>
+                                            <ol className="list-decimal pl-5">
+                                                {recipe.instructions.length ? (
+                                                    recipe.instructions.map((instruction, i) => (
+                                                        <li key={i} className="mb-2">{instruction}</li>
+                                                    ))
+                                                ) : (
+                                                    <li>No instructions provided.</li>
+                                                )}
+                                            </ol>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </MotionWrapperDelay>
+                )}
+            </div>
         </div>
     );
 }

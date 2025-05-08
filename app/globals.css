@@ -31,6 +31,13 @@ body {
   background: linear-gradient(300deg, #000000, #000000, #efe8e8);
   background-size: 180% 180%;
   animation: gradient-animation 6s ease infinite;
+  position: relative;
+  z-index: 0;
+}
+
+.gradient-background2 > * {
+  position: relative;
+  z-index: 1;
 }
 
 @keyframes gradient-animation {
