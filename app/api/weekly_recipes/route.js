@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
-import axios from "axios";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const model = genAI.getGenerativeModel({ model: "gemini-1.0-pro" });
 
 const systemMessage = `You are Chef Quirky, a fun and engaging recipe assistant. When asked for a recipe, provide a quirky introduction limited to **two short paragraphs** (3-4 sentences total, max 100 words), followed by the recipe in this format:
 **Recipe Name**
@@ -16,55 +19,82 @@ For weekly requests, provide an introductory quirky response limited to **two sh
 export async function GET() {
   try {
     if (!process.env.GEMINI_API_KEY) {
-      throw new Error("GEMINI_API_KEY is not configured");
-    }
-
-    const response = await axios.post(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent",
-      {
-        contents: [
-          {
-            parts: [
-              {
-                text: `${systemMessage}\n\nProvide seven dinner recipes for the week, one for each day (Monday to Sunday).`,
-              },
-            ],
-          },
-        ],
-      },
-      {
-        headers: {
-          "x-goog-api-key": process.env.GEMINI_API_KEY,
-          "Content-Type": "application/json",
+      console.error("GEMINI_API_KEY is not configured");
+      return NextResponse.json(
+        {
+          error:
+            "API key not configured. Please check your environment variables.",
         },
+        { status: 500 }
+      );
+    }
+
+    console.log("Generating weekly recipes");
+    const prompt = `${systemMessage}\n\nProvide seven dinner recipes for the week, one for each day (Monday to Sunday).`;
+
+    try {
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      const text = response.text();
+      console.log("Generated weekly recipes text:", text);
+
+      if (!text || text.trim() === "") {
+        console.error("Empty response from Gemini API");
+        return NextResponse.json(
+          {
+            error:
+              "Chef Quirky couldn't generate weekly recipes. Please try again!",
+          },
+          { status: 500 }
+        );
       }
-    );
 
-    if (!response.data.candidates?.[0]?.content?.parts?.[0]?.text) {
-      throw new Error("Invalid response format from Gemini API");
+      const { quirkyResponse, recipes } = parseRecipeResponse(text, false);
+      console.log(
+        "Parsed weekly recipes:",
+        JSON.stringify({ quirkyResponse, recipes }, null, 2)
+      );
+
+      if (!recipes || recipes.length === 0) {
+        console.error("No recipes were generated from text:", text);
+        return NextResponse.json(
+          {
+            error:
+              "Chef Quirky couldn't understand the recipe format. Please try again!",
+          },
+          { status: 500 }
+        );
+      }
+
+      if (recipes.length !== 7) {
+        console.error("Incorrect number of recipes:", recipes.length);
+        return NextResponse.json(
+          {
+            error:
+              "Chef Quirky couldn't generate all seven recipes. Please try again!",
+          },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json({ quirkyResponse, recipes });
+    } catch (geminiError) {
+      console.error("Gemini API error:", geminiError);
+      return NextResponse.json(
+        {
+          error:
+            "Chef Quirky is having trouble connecting to the recipe database. Please try again!",
+        },
+        { status: 500 }
+      );
     }
-
-    const text = response.data.candidates[0].content.parts[0].text;
-    const { quirkyResponse, recipes } = parseRecipeResponse(text, false);
-
-    if (!recipes || recipes.length === 0) {
-      throw new Error("No recipes were generated");
-    }
-
-    return NextResponse.json({ quirkyResponse, recipes });
   } catch (error) {
-    console.error(
-      "Error in weekly_recipes API:",
-      error.response?.data || error.message
-    );
+    console.error("Error in weekly recipes generation:", error);
     return NextResponse.json(
       {
-        error:
-          error.response?.data?.error?.message ||
-          error.message ||
-          "Chef Quirky couldn't plan your week. Try again!",
+        error: "Chef Quirky hit a snag. Please try again!",
       },
-      { status: error.response?.status || 500 }
+      { status: 500 }
     );
   }
 }
