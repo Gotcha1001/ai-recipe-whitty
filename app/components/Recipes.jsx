@@ -223,13 +223,22 @@ export default function Recipes() {
 
         try {
             const response = await axios.post('/api/recipes', { userInput });
+            console.log('API Response:', response.data); // Debug log
+
+            if (!response.data || !response.data.recipe) {
+                throw new Error('Invalid response from server');
+            }
+
             const { quirkyResponse, recipe } = response.data;
+
             setQuirkyResponse(quirkyResponse);
             setIndividualRecipe(recipe);
+
             if (recipe.imageUrl) {
                 setImageUrl(recipe.imageUrl);
             }
         } catch (err) {
+            console.error('Error details:', err); // Debug log
             setError(err.response?.data?.error || 'Chef Quirky hit a snag. Try again!');
         } finally {
             setLoading(false);
@@ -529,69 +538,40 @@ export default function Recipes() {
                 )}
 
                 {individualRecipe && (
-                    <MotionWrapperDelay
-                        initial="hidden"
-                        whileInView="visible"
-                        viewport={{ once: true, amount: 0.5 }}
-                        transition={{ duration: 0.5 }}
-                        variants={{
-                            hidden: { opacity: 0, y: 20 },
-                            visible: { opacity: 1, y: 0 },
-                        }}
-                    >
-                        <div className="bg-black bg-opacity-50 p-6 rounded-lg">
-                            <h2 className="text-2xl font-bold text-white mb-4">{individualRecipe.name}</h2>
-                            {imageUrl && (
+                    <div className="mt-8 p-6 gradient-background2 rounded-lg shadow-lg">
+                        <h2 className="text-2xl font-bold mb-4">{individualRecipe.name}</h2>
+                        {imageUrl && (
+                            <div className="mb-6">
                                 <img
                                     src={imageUrl}
-                                    alt="Recipe image"
-                                    className="mb-4 max-w-full h-auto rounded-lg shadow-lg"
+                                    alt={individualRecipe.name}
+                                    className="w-full h-64 object-cover rounded-lg shadow-md"
                                 />
-                            )}
-                            <div className="bg-gradient-to-br from-purple-800 to-black bg-opacity-90 p-6 rounded-lg shadow-lg mb-6 border border-purple-900">
-                                <h3 className="text-xl font-semibold text-white">{individualRecipe.name}</h3>
-                                <div className="text-gray-300 mt-4">
-                                    <h4 className="font-semibold text-gray-200">Ingredients:</h4>
-                                    <ul className="list-disc pl-5 mb-4">
-                                        {individualRecipe.ingredients.length ? (
-                                            individualRecipe.ingredients.map((ingredient, index) => (
-                                                <li key={index}>{ingredient}</li>
-                                            ))
-                                        ) : (
-                                            <li>No ingredients provided.</li>
-                                        )}
-                                    </ul>
-                                    <h4 className="font-semibold text-gray-200">Instructions:</h4>
-                                    <ol className="list-decimal pl-5">
-                                        {individualRecipe.instructions.length ? (
-                                            individualRecipe.instructions.map((instruction, index) => (
-                                                <li key={index} className="mb-2">{instruction}</li>
-                                            ))
-                                        ) : (
-                                            <li>No instructions provided.</li>
-                                        )}
-                                    </ol>
-                                </div>
-                                <div className="mt-4">
-                                    <button
-                                        onClick={() => handleDownloadPDF(individualRecipe)}
-                                        className="bg-purple-600 text-white px-4 py-2 rounded-lg mr-2 hover:bg-purple-700 transition duration-200"
-                                    >
-                                        Download Recipe PDF
-                                    </button>
-                                    {imageUrl && (
-                                        <a
-                                            href={imageUrl}
-                                            download={`${individualRecipe.name.toLowerCase().replace(/\s+/g, '_')}.jpg`}
-                                            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition duration-200"
-                                        >
-                                            Download Image
-                                        </a>
-                                    )}
-                                </div>
                             </div>
+                        )}
+                        <div className="mb-6">
+                            <h3 className="text-xl font-semibold mb-2">Ingredients:</h3>
+                            <ul className="list-disc pl-5">
+                                {individualRecipe.ingredients.map((ingredient, index) => (
+                                    <li key={index} className="mb-1">{ingredient}</li>
+                                ))}
+                            </ul>
                         </div>
-                    </MotionWrapperDelay>
+                        <div>
+                            <h3 className="text-xl font-semibold mb-2">Instructions:</h3>
+                            <ol className="list-decimal pl-5">
+                                {individualRecipe.instructions.map((instruction, index) => (
+                                    <li key={index} className="mb-2">{instruction}</li>
+                                ))}
+                            </ol>
+                        </div>
+                        <button
+                            onClick={() => handleDownloadPDF(individualRecipe)}
+                            className="mt-6 flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+                        >
+                            <FaDownload /> Download Recipe
+                        </button>
+                    </div>
                 )}
 
                 {weeklyRecipes.length > 0 && (

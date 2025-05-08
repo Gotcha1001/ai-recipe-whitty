@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-1.0-pro" });
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
 const systemMessage = `
 You are Chef Quirky, a fun and engaging recipe assistant. When asked for a recipe, provide a quirky introduction limited to **two short paragraphs** (3-4 sentences total, max 100 words), followed by the recipe in this format:
@@ -74,18 +74,19 @@ function parseRecipeResponse(text, isSingleRecipe = false) {
         i++;
         continue;
       } else {
-        for (const d of days) {
-          if (header.startsWith(`${d}:`)) {
-            if (currentRecipe) {
-              recipes.push(currentRecipe);
-            }
-            const name = header.replace(`${d}:`, "").trim();
-            currentRecipe = { name, ingredients: [], instructions: [], day: d };
-            currentSection = "ingredients";
-            break;
+        // Handle weekly recipes
+        const dayMatch = header.match(
+          /^(Day:\s*)?([A-Za-z]+)(?:\s*-\s*|\s*:\s*|\s+)(.+)$/
+        );
+        if (dayMatch) {
+          if (currentRecipe) {
+            recipes.push(currentRecipe);
           }
-        }
-        if (!currentRecipe) {
+          const day = dayMatch[2];
+          const name = dayMatch[3].trim();
+          currentRecipe = { name, ingredients: [], instructions: [], day };
+          currentSection = "ingredients";
+        } else {
           quirkyResponse += line + "\n";
         }
         i++;
@@ -255,9 +256,9 @@ export async function POST(request) {
           const imageData = await imageResponse.json();
           console.log("Image generation response:", imageData);
 
-          if (imageData.imageUrl) {
-            console.log("Adding image URL to recipe:", imageData.imageUrl);
+          if (imageData && imageData.imageUrl) {
             recipe.imageUrl = imageData.imageUrl;
+            console.log("Adding image URL to recipe:", imageData.imageUrl);
           }
         }
       } catch (imageError) {
