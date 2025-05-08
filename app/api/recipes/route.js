@@ -91,17 +91,30 @@ function parseRecipeResponse(text, isSingleRecipe = false) {
         i++;
       }
     } else if (currentRecipe) {
-      if (line.toLowerCase().startsWith("ingredients:")) {
+      if (line.toLowerCase().includes("ingredients:")) {
         currentSection = "ingredients";
-      } else if (line.toLowerCase().startsWith("instructions:")) {
+      } else if (line.toLowerCase().includes("instructions:")) {
         currentSection = "instructions";
-      } else if (
-        currentSection === "ingredients" &&
-        (line.startsWith("- ") || line.startsWith("* "))
-      ) {
-        currentRecipe.ingredients.push(line.slice(2).trim());
-      } else if (currentSection === "instructions" && /^\d+\.\s/.test(line)) {
-        currentRecipe.instructions.push(line.replace(/^\d+\.\s*/, "").trim());
+      } else if (currentSection === "ingredients") {
+        if (
+          line.startsWith("- ") ||
+          line.startsWith("* ") ||
+          line.startsWith("• ")
+        ) {
+          currentRecipe.ingredients.push(line.replace(/^[-*•]\s*/, "").trim());
+        } else if (line.match(/^\d+\.\s/) && currentSection === "ingredients") {
+          currentRecipe.ingredients.push(line.replace(/^\d+\.\s*/, "").trim());
+        }
+      } else if (currentSection === "instructions") {
+        if (line.match(/^\d+\.\s/)) {
+          currentRecipe.instructions.push(line.replace(/^\d+\.\s*/, "").trim());
+        } else if (
+          line.startsWith("- ") ||
+          line.startsWith("* ") ||
+          line.startsWith("• ")
+        ) {
+          currentRecipe.instructions.push(line.replace(/^[-*•]\s*/, "").trim());
+        }
       }
       i++;
     } else {
